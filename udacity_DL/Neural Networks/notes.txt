@@ -1,0 +1,339 @@
+# NOTES
+## Intro to NN
+### Using Perceptrons as Logic Gates:
+$XOR(A, B) = (NOT(A AND B)) AND (A OR B) = NAND(A, B) AND (A OR B)$
+
+Logloss and Maximum Likelihood:
+using MLE is (somewhat) equivalent of using logloss, which essentially turns the joint probability (product of independent events) into summations.
+
+### Softmax:
+also called *logit*,
+squashes the inputs to be between 0 and 1; and also normalizes them so that they all sum to 1.
+perfect for predicting multiple classes
+
+### Cross Entropy:
+raw form: $CE(an event of the system) = \sum_{all subsystems} (-log(p_i))$
+a system would be the coordinate space; a subsystem would be a dimension in it.
+lower cross entropy means higher chances of this event happening (across all dimensions), under the {p_i, 1-p_i} assumption of each subsystem i.
+e.g. a system of 3 doors each with probability of (0.8, 0.7, 0.1) of having a gift behind it. an event of observing gifts in the first two doors (1, 1, 0). the cross entropy is 0.69.
+CE can be thought of as checking the similarity between the probability vector and the gift vector.
+
+### two-class CE:
+$\sum_{all events} -( y_i * log(p_i) + (1-y_i) * log(1-p_i) )$
+y = 0, 1
+
+### multi-class CE:
+$\sum_{all samples} \sum_{all classes} -( y_{ij} * log(p_{ij}) )$
+in modeling:
+$p_{ij}$ are given by the model prediction, yhat, so the error function becomes:
+$\sum_{all observations} \sum_{all classes} -( y_{ij} * log(yhat_{ij}) )$
+
+
+### Gradient Descent:
+We'll also need to standardize the data, which means to scale the values such that they have zero mean and a standard deviation of 1. This is necessary because the sigmoid function squashes really small and really large inputs. The gradient of really small and large inputs is zero, which means that the gradient descent step will go to zero too.
+
+use the mean of the square errors (MSE). Now that we're using a lot of data, summing up all the weight steps can lead to really large updates that make the gradient descent diverge. Instead, we can just divide by the number of records in our data, mm to take the average. This way, no matter how much data we use, our learning rates will typically be in the range of 0.01 to 0.001.
+
+First, you'll need to initialize the weights. We want these to be small such that the input to the sigmoid is in the linear region near 0 and not squashed at the high and low ends. A good value for the scale is $1/\sqrt{n}$, where n is the number of input units
+
+between each to adjacent layers, the weights are a matrix, having the shape of $n_{inputs} \times n_{neurons} (W_{ij})$
+
+
+### Training a NN:
+*Early stopping* 	- stop epochs till validation error stops decreasing  
+*Regularization* 	- L1 is good for feature selection; L2 is better for training models  
+*Dropout* 		    - turn off nodes randomly during training, so less dominating weights on certain nodes  
+*Random restart* 	- start from a few random places and do gradient descent, to increase the chance of reaching a better(lower) local minima  
+*Other activations*       - tanh/ReLU, instead of sigmoid, to avoid/reduce vanishing gradients  
+*Stochastic/mini batch*   - less accurate approximate to the actual gradient in each step, but less computing and faster convergence overall  
+*Learning rate decay*     -  
+*Momentum update* - average of previous steps, but more weights on more recent steps, so shallow local minima can be overcomed  
+*Epoch*           - a single forward and backward pass of the whole dataset  
+*Mini-batch* 		  - random shuffle the data before each epoch  
+*Reduce Noise*   	- removing unnecessary noise input to the NN can result in much better performance. e.g., in text sentiment analysis, the most common words are not really predictive, get rid of them before training the model.    
+
+### Keras:
+keras.models.Sequential
+a wrapper for the neural network model that treats the network as a sequence of layers
+- add()
+- compile()
+- fit()
+- evaluate()
+- summary()
+
+keras.layers
+The Keras Layer class provides a common interface for a variety of standard neural network layers
+
+
+### Tensorflow:
+create tensors in tf:
+- tf.Constant()
+- tf.Variable(), data that will be updated in the future should be stored this way
+- tf.placeholder(), variables that will be filled in by `feed_dict` in `sess.run` should be here
+
+operations in tf:
+- tf.reduce_sum()
+- tf.multiply()
+- tf.matmul()
+- tf.add()
+- tf.log()
+
+build a tf computational graph:
+- init = tf.global_variables_initializer()
+- tf.truncated_normal() # used to initialize random weights
+- with tf.Session() as sess:
+  - sess.run() can be used multiple times to evaluate necessary tf operations
+
+details:
+- mini-batch
+  - `features = tf.placeholder(tf.float32, [None, n_input]); labels = tf.placeholder(tf.float32, [None, n_classes])`; `None` is used as a placeholder for batch size
+- save model
+  - `saver = tf.train.Saver(); saver.save(sess, file_path)` # saves any tf.Variable to disk
+  - `saver.restore(sess, file_path)`
+- fine-tune
+  - specify variable name manually when saving, to avoid loading errors
+  - e.g. `bias = tf.Variable(tf.truncated_normal([3]), name='bias_0')`
+- dropout
+  - use `tf.nn.dropout()`
+  - e.g. ` tf.nn.dropout(hidden_layer, keep_prob)`, a good starting probability is 0.5
+  - only drop units while training the model; set keep_prob==1 when evaluating
+- calculate loss function
+  - If you want to do optimization to minimize the cross entropy, AND you're softmaxing after your last layer, you should use `tf.nn.softmax_cross_entropy_with_logits` instead of doing it yourself, because it covers numerically unstable corner cases in the mathematically right way
+
+
+## CNN
+### Intro
+- CNN accepts matrices as input, so it takes into account local connectivities
+- CNN uses less parameters than MLP, so it can work with larger images in size
+- weight sharing (the same filter runs across all image sub-regions): the same information can be present anywhere in the image; each filter thus stands for one kind of pattern
+
+### Convolutional Layer
+- each filter (all its units) is essentially a list of hidden layer nodes, but visually it is easier to draw them in 2D
+- conv. layer is not a dense layer, b/c each node in a filter only connects to one region of the image, which is why such layers use much less parameters.
+- the weights in each filter is randomly initialized and learned from the data
+- the output of one filter is the summation across the different channels; the output of one convlutional layer, are the filters' output stacked together, forming a new multi-channel "image".
+- each filter also has a bias term, don't forget adding them when calculating # of parameters
+- *stride* and *padding* are two additional parameters for defining a filter
+- typical settings are: `filters='increasing sequence from input layer', kernel_size=2~5, stride=1, padding='same', activation='relu'`
+
+### Pooling Layer
+- it usually come after each covolutional layer
+- it is designed to reduce the high dimensionality from having multiple filters in convolutional layers
+- pooling is done on each of the channels (filter output), so it only reduces the width/height of the feature maps, not the depth.
+- two common types are *max pooling* and *global average pooling*
+- *max pooling* requires parameters such as *stride*, *pool_size*, and *padding*
+- no parameters to learn in pooling layers
+- typical settings are: `pool_size=2, stride=2, padding='default'`
+
+### Put Together
+- *input* -> *conv* -> *pool* -> *conv* -> *pool* -> ... -> *dense* -> *output*
+- combining *conv* and *pool* layers will help to shrink the spatial dimension while increasing the depth, so that eventually the image is turned into a long column vector containing high level description of the image from different filters, and this process serves as automatic feature extraction.
+![Combine Conv and Pool 1](./cnn1.PNG)
+![Combine Conv and Pool 2](./cnn2.PNG)
+
+### Weight Initialization
+- All zeros/ones will lead to all units acting exactly the same
+- Uniform distribution, [-y, y], where y shouldn't be too small or too big; empirically $1 / \sqrt{n}$, n is the number of inputs to a given neuron.
+- (truncated) Normal distribution (two sigmas)
+- Smaller neural networks doesn't show a huge difference between normal and truncated normal.
+
+### Autoencoders
+- Use the middle layer with reduced dimensions between encoder and decoder as a way to encode input/reduce dimensions.
+- Encoder (gradually) reduces the dimension of the input; Decoder reverts the trend and try to output results identical to the input
+
+#### Simple encoder
+a simple multi-layer NN with one (or a few) dense layers between input and output. The design is simple but comes at the cost of lost input signals
+
+#### Convolutional encoder
+- encoder is a sequence of convolutional layers to transform the image input into deep but small-in-2D tensors
+- decoder is either made of deconvlution (will lead to checkerboard artifacts) or upsampling with convolutional filters (works better)
+- such encoders are not as useful as techniques such as JPEG in compression, and does not generalize very well. But it is very good for denoising and dimension reduction.
+
+
+## RNN
+### Intro
+RNN has the vanishing gradient problem, despite its elegancy of utilizing past information. LSTM is designed to overcome this issue
+
+### RNN
+The output of each neuron is then fed back to itself (as illustrated in the folded model). For the next input, the model then uses the memory (state) from the last operation. Therefore `s` is used, instead of `h`, to denote the output of hidden layers
+![folded model](./rnn1.png)
+
+The unfolded model is usually what we use when working with RNNs
+![unfolded model](./rnn2.png)
+
+The folded model is good for high level discussions and tracing the information flow.
+
+#### Backpropagation through time
+- In BPTT we will take into account every gradient stemming from each state, accumulating all of these contributions together.
+- Three major weights to update, the weights connecting from output to recurent nodes (states); the weights connecting input to recurrent nodes (states); the weights connecting previous states to recurrent nodes (current states) itself through time
+- You will find that as we propagate a step back, we have an additional partial derivatives to consider in the chain rule.
+- As mentioned in this lesson, capturing relationships that span more than 8 to 10 steps back is practically impossible due to the vanishing gradient problem
+- In addition to gradient vanishing, there is also possibility of gradient explosion. Gradient clipping can be used to overcome this issue
+
+### LSTM
+- references:
+  - http://colah.github.io/posts/2015-08-Understanding-LSTMs/
+  - http://blog.echen.me/2017/05/30/exploring-lstms/
+  - https://www.youtube.com/watch?v=iX5V1WpxxkY
+- Used to remembeer information from a long time ago, can support rembering information over 1000 timesteps
+- LSTM node replaces the recurrent node. LSTM node is fully differentiable and consists of four operations: sigmoid, hyperbolic tangent (tanh), multiplication, and addition.
+- LSTM cell has four gates: remember gate, learn gate, forget gate, use gate. The input would be current LTM, STM, and new input; the output would be updated LTM, updated STM, and prediction (same as the updated STM). Note that the LTM and STM are also vectors, whose dimension is determined by the weights, or the number of hidden units in the LSTM cell.
+    - **Forget** gate: LTM goes here and is filtered
+    - **Learn** gate: STM and new input go here and get selected
+    - **Remember** gate: Forget and Learn go here to determine new LTM
+    - **Use** gate: Forget and Learn go here to determine new STM (also new output)
+- Other architectures:
+    - GRU, a simpler version
+    - Peehole connection, LTM having a say in determining what to forget
+
+![lstm structure1](./lstm1.png)
+![lstm structure2](./lstm2.png)
+![gru](./gru.png)
+![peehole](./peehole.png)
+- training:
+    - sequence batching (return x, y): the data can be fed as one sequence into the model, but it is not efficient. We can break up the long sequence into subsequences and treat them like the batches in CNN, so feeding multiple subsequences at the same time. But the code to generate such batches will be a bit more sophiscated than the CNN counterpart (specifiy how many units per subsequence, how many subsequences, and how big a step between each batch). The target will be just one unit off by shifting in the input
+    - tuneable hypter-parameters:
+      - `batch_size`    - Number of sequences running through the network in one pass.
+      - `num_steps`     - Number of characters in the sequence the network is trained on. Larger is better typically, the network will learn more long range dependencies. But it takes longer to train. 100 is typically a good number here.
+      - `lstm_size`     - The number of units in the hidden layers.
+      - `num_layers`    - Number of hidden LSTM layers to use, typically a few
+      - `learning_rate` - Learning rate for training
+      - `keep_prob`     - The dropout keep probability when training. If you're network is overfitting, try decreasing this
+      - The two most important parameters that control the model are `lstm_size` and `num_layers`. I would advise that you always use `num_layers` of either 2/3. The `lstm_size` can be adjusted based on how much data you have.
+      - The other two important quantities to keep track of are the size of the training data and the numbr of parameters. They should be roughly on the same magnitude, e.g., 100MB data ~ 1 million parameters (?? maybe)
+      - Also make sure enough data points are there in the validation set, otherwise the validation performance will be noisy and not very informative.
+      - in `tensorflow`, the `BasicLSTMCell` actually takes care of the time steps.
+
+- Hyperparameters：
+    - learning_rate:   the most important hyperparameter. if the initializations and other parameters are all reasonable, a good starting point is 0.01. Using learning rate decay or adaptive optimizer are good choices during training.
+    - mini_batch_size: too small, it learns too slow and error calculation is more noisy; too big, it could be too computationally expensive and lead to local minimum; a good range to try out would be 32, 64, 128, 256
+    - Number of Iterations/Epochs:   the more the better, but early stopping is one great way to automatically tune the parameter.
+    - Number of hidden units/layers: hidden units are generally the more the better, but not too many (track validation loss), it's beneficial to have number of first layer hidden units larger than the input shape. For hidden layers, 3 is better than 2, but going deeper is not necessarily worth doing, only exception is CNN.
+    - Embedding size:  for word level inputs, word embedding are needed. majority of tasks show performance increase become apparent when the embedding size reaches 200, it's not unusual to go up to 500, or even 1000 sometimes.
+
+### Word2Vec
+CBOW & Skip-gram
+- Word2Vec in practical use is just a lookup table, the words are tokenized into integers, and then find the corresponding embedding based on the index integer in the lookup table. The reason for this implementation is that texts are typically one hot encoded to get loaded into the model, when multiplying with the giant weight matrix, it is essentially just taking a particular row from that weight matrix, acting like looking up in a table.
+- Skip-gram performs better than CBOW
+
+Implementation
+- Preprocess text data
+  - replace punctuations with `||PERIOD||`, `||COMMA||`, etc.
+  - remove unuseful (is, of, the, etc.) words (subsampling); can utilize a probabilistic approach: ($p(w)=1-\sqrt(\frac{t}{freq(w)}))
+  - implement a `get_target()` function, which returns a context of the input word, but the window size is probabilistic, meaning words near the input word are more likely to be chosen, in other words, higher weights are given to nearer words
+  - **negative sampling**: during training, for each input example, all weights will be updated, although there is only one true example, so the training is inefficient. Instead, we can estimate the loss by updating the weights on the correct label, and then only weights on a small sampled set of the others.
+
+
+## Generative Adversarial Network
+
+use a differentiative function, represented as a neural network, the generator network
+the generator will maximize the probability of generating the training set, but very difficult to calculate explicitly. GAN uses an estimate, in the form of a discriminator (a regular classifier)
+(Video: How GAN work -> move uphill, not dense yet???)
+
+both networks has loss functions, one maximize, one minimize, so the optimization is trying to find the saddle point
+
+both d and g should have at least one hidden layer, this ensures the universal estimator property (can estimate any probability distribution)
+tips and tricks for good performance:
+- leaky relu is popular as an activation in GAN, helps gradients flow from g to d
+- tanh is popular as the output layer of g, meaning the input of d need to be normalized to (-1, 1)
+- sigmoid is usually used as the output activation of d, which ensures a probabilistic output
+- use cross entropy with label smoothing
+- use transpose conv. (b/c in image applications, these layers are used as feature extraction, which desires wide and tall feature map output rather than long and narrow ones seen in typical CNNs)
+- use batch normalization in almost all layers except the output layers of d and g is necessary. Normalization is added before calling the activation function and outputing to the next layer
+
+one generator, but two discriminators for fake and real data respectively, the two discriminators should share the same weights (essentially just one network); weight updates are separate between generator and discriminator, so they need separate optimizers and only the respective set of variables remain trainable in each optimizer.
+
+generator loss would make use of discriminators logits on the fake data, but with label 1, b/c it is trained to fool the discriminator
+
+GANs are very sensitive to hyper-parameters. A good set of parameters ensure D and G don't overpower each other.
+
+weight initialization is still important to break the symmetry and ensure faster convergence
+
+### Semi-supervised Learning
+Instead of focusing on the generator and discarding the discriminator; semi-supervised learning makes full use of the discriminator. GANs here are using both labeled and unlabeled data for learning, the cost function consists of both the labeled data (cross entropy) and unlabeled data.
+- Feature matching is also a necessary component for making GANs work better. That also means batch normalization can not be used in some places of the model.
+- The output of the discriminator (logits) needs to be rearranged so that it can output the real (sum of all the difference class probabilities) vs. fake probabilities, making the model able to learn as a GAN
+- Loss function has two components, one is the real vs. fake GAN loss (unsupervised), the other is the multi-class classification loss (supervised).
+
+
+## Reinforcement Learning
+- 3 interactions between agent and environment: Reward, Action, State
+- episodic tasks (e.g. games) vs. continuing tasks (e.g. trading): episodic tasks will have terminal states
+
+### Rewards:
+looking at (expected) cumulative rewards is necessary and should be the ultimate goal. At each time step t, the cumulative reward is the sum of all single step rewards from the future (t+1, t+2, etc)
+discounted return means rewards coming from the immediate next steps have more impact than rewards at much later time (far into the future), in the form of a discounted rate. This is especially important in continuous tasks
+Video 2-17: MDP definition
+
+### MDP:
+Markov Decision Process
+State Space S; Action Space A; A Set of Rewards R; State Transition Dynamics;
+
+### Policy:
+determines how an agent responses to the environment under different scenarios, a mapping from S to A, usually denoted by $\pi$
+deterministic policy vs. stochastic policy
+
+### State-Value Function
+policy-specific ($\pi$) mapping between state ($s$) and value ($v$), yielding the expected return for an agent starting from the state and following the policy in all future time steps.
+
+### DP
+policy evaluation: a way to estimate the state-values of a policy
+policy improvement: a way to find the optimal policy, given the state values and transition dynamics (rewards & transition probabilities)
+
+### Value Iteration:
+instead of policy iteration, value iteration can also be used to find the best policy.
+This method finds the best estimate of the state-value functions first, and then update the policy via one-step argmax to the optimal one
+
+### MC Method:
+two phases: prediction + control
+MC Prediction:
+estimate action-value and state-value function by simulation under a certain policy. first-visit vs. every-visit MC method.
+MC Control:
+policy evaluation + policy improvement
+epsilon-greedy method
+
+### Exploration vs. Exploitation Dilemma
+- a decaying epsilon in epsilon-greedy method helps mitigate the issue
+- an improved and put-together algorithm: first-visit constant-alpha greedy method
+- balance between exploring new hypotheses vs. exploiting limited knowledge about which already works well
+
+A deterministic policy is a mapping $π: S → A$. For each state $s∈S$, it yields the action $a∈A$ that the agent will choose while in state $s$.
+A stochastic policy is a mapping $π: S×A → [0,1]$. For each state $s∈S$ and action $a∈A$, it yields the probability $π(a∣s)$ that the agent chooses action $a$ while in state $s$.
+
+### Temporal Difference Method
+two phases: prediction + control
+TD Learning
+advantages: update after every time step; applicable to both episodic and continuous tasks; converges faster than MC, practically
+Control:
+SARSA algorithm (epsilon-greedy with action-value updates)
+
+
+state-value function $v(s)$
+action-value function  $q(s, a)$
+
+Bellman Equation: recursive relationship of $v(s)$
+
+Optimal Policy:
+- A policy $\pi'$ is better than $\pi$ if and only if $v'(s) >= v(s)$ for all $s$ in $S$.
+- An optimal policy must meet $\pi_* >= \pi$ for all all possible $\pi$. A optimal policy is guaranteed to exist but may not be unique.
+- Once the agent determines the optimal action-value function $q_*$, it can quickly obtain an optimal policy $\pi_*$ by setting $\pi_*(s) = \arg\max_{a\in\mathcal{A}(s)} q_*(s,a)$
+
+#### Iterative Policy Evaluation
+An interactive method
+- assuming the agent has full and perfect knowledge of the MDP that determines (characterizes) how the environment interacts with the agent
+- explicitly express recursive relationships of state-value functions between states under a policy
+- start with random guesses (usually zero) on each $v(s)$
+- iteratively update each $v(s)$ across all states
+- it is theoretically guaranteed to converge, as long as all $v(s)$ are finite
+
+From $v(s)$, it is easy to construct the action-value function $q(s,a)$, which serves as the connection to the next step (*policy improvement*)
+
+#### Iterative Policy Improvement
+after *policy evaluation*, a new $v(s)$ is constructed. Iteratively, a better policy can be found by finding the action (calculate $q(s,a)$) that maximizes the action-value function for each state.
+
+#### Policy Iteration
+Combine policy evaluation and policy improvement to iteratively improve and locate the best policy
+- start with equiprobable random policy
+- policy evaluation to calculate $v(s)$
+- policy improvement to find a better policy and update
+- repeat, till no improvement is found
